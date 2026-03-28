@@ -1,14 +1,14 @@
 """
 planner/state.py
 ================
-Этап 4 — Student Success Copilot
+Stage 4 — Student Success Copilot
 
-Формализация задачи поиска (Week 2 syllabus):
-  State   : текущее расписание + список оставшихся задач
-  Actions : выделить временной слот под задачу
-  Goal    : все задачи распределены (schedule полное)
-  g(n)    : количество конфликтов дедлайнов накопленных до сих пор
-  h(n)    : оценка будущих конфликтов (используется в A*)
+Formalisation of the search problem (Week 2 syllabus):
+  State   : current schedule + list of remaining tasks
+  Actions : assign a time slot to a task
+  Goal    : all tasks are scheduled (schedule is complete)
+  g(n)    : number of deadline conflicts accumulated so far
+  h(n)    : estimate of future conflicts (used in A*)
 """
 
 from __future__ import annotations
@@ -16,18 +16,18 @@ from __future__ import annotations
 
 class StudentScheduleState:
     """
-    Состояние планировщика.
+    Planner state.
 
-    tasks      : список dict-задач, каждая содержит:
-                   name     (str) — название
-                   duration (int) — длительность в слотах
-                   deadline (int) — индекс последнего допустимого слота
-    time_slots : список меток слотов ["Mon1", "Mon2", ...]
-    schedule   : dict {slot_label -> task_name} — текущие назначения
+    tasks      : list of task dicts, each containing:
+                   name     (str) — task name
+                   duration (int) — duration in slots
+                   deadline (int) — index of the last acceptable slot
+    time_slots : list of slot labels ["Mon1", "Mon2", ...]
+    schedule   : dict {slot_label -> task_name} — current assignments
 
-    Иммутабельность:
-      assign() НЕ изменяет текущий объект — возвращает НОВОЕ состояние.
-      Это обязательно для корректного поиска по дереву состояний.
+    Immutability:
+      assign() does NOT modify the current object — it returns a NEW state.
+      This is required for correct search tree traversal.
     """
 
     def __init__(
@@ -36,54 +36,54 @@ class StudentScheduleState:
         time_slots: list,
         schedule: dict = None,
     ):
-        self.tasks      = tasks                        # все задачи (неизменны)
-        self.time_slots = time_slots                   # все слоты  (неизменны)
-        self.schedule   = schedule if schedule else {} # назначения {slot: name}
+        self.tasks      = tasks                        # all tasks (unchanged)
+        self.time_slots = time_slots                   # all slots  (unchanged)
+        self.schedule   = schedule if schedule else {} # assignments {slot: name}
 
-    # ── запросы состояния ─────────────────────────────────────────────────
+    # ── state queries ─────────────────────────────────────────────────────
 
     def is_goal(self) -> bool:
-        """Цель: все задачи размещены в расписании."""
+        """Goal: all tasks are placed in the schedule."""
         scheduled_names = set(self.schedule.values())
         return all(t["name"] in scheduled_names for t in self.tasks)
 
     def get_remaining_tasks(self) -> list:
-        """Возвращает задачи, которые ещё не назначены ни в один слот."""
+        """Returns tasks not yet assigned to any slot."""
         scheduled_names = set(self.schedule.values())
         return [t for t in self.tasks if t["name"] not in scheduled_names]
 
     def get_available_slots(self) -> list:
-        """Возвращает слоты, которые ещё не заняты."""
+        """Returns slots not yet occupied."""
         return [s for s in self.time_slots if s not in self.schedule]
 
-    # ── действие (action) ─────────────────────────────────────────────────
+    # ── action ────────────────────────────────────────────────────────────
 
     def assign(self, task: dict, slot: str) -> "StudentScheduleState":
         """
-        Размещает задачу в слот.
-        Возвращает НОВОЕ состояние — текущее не изменяется.
+        Places a task in a slot.
+        Returns a NEW state — the current one is not modified.
 
-        Это центральное действие пространства поиска:
+        This is the central action in the search space:
           state.assign(task, slot) → new_state
         """
-        new_schedule = dict(self.schedule)        # копируем текущее расписание
-        new_schedule[slot] = task["name"]         # добавляем новое назначение
+        new_schedule = dict(self.schedule)        # copy current schedule
+        new_schedule[slot] = task["name"]         # add new assignment
         return StudentScheduleState(
             tasks      = self.tasks,
             time_slots = self.time_slots,
             schedule   = new_schedule,
         )
 
-    # ── метрики ───────────────────────────────────────────────────────────
+    # ── metrics ───────────────────────────────────────────────────────────
 
     def calculate_conflicts(self) -> int:
         """
-        Считает количество конфликтов дедлайнов.
+        Counts the number of deadline conflicts.
 
-        Конфликт: задача назначена в слот с индексом > deadline задачи.
-        Например: task deadline=2, но назначена в слот с индексом 4 → конфликт.
+        Conflict: a task is assigned to a slot with index > task deadline.
+        Example: task deadline=2, but assigned to slot with index 4 → conflict.
 
-        Используется как g(n) в A* и как итоговая метрика качества.
+        Used as g(n) in A* and as the final quality metric.
         """
         conflicts = 0
         task_map  = {t["name"]: t for t in self.tasks}
@@ -98,33 +98,33 @@ class StudentScheduleState:
 
     def heuristic(self) -> int:
         """
-        h(n) — admissible эвристика для A*.
+        h(n) — admissible heuristic for A*.
 
-        Оценивает сколько БУДУЩИХ конфликтов возможно:
-        считает задачи, у которых не хватает доступных слотов до дедлайна.
+        Estimates how many FUTURE conflicts are possible:
+        counts tasks that lack an available slot before their deadline.
 
-        Admissible потому что:
-          - мы считаем только задачи БЕЗ гарантированного слота
-          - реальных конфликтов не может быть МЕНЬШЕ чем эта оценка
-          - значит h(n) никогда не переоценивает → A* остаётся оптимальным
+        Admissible because:
+          - we only count tasks WITHOUT a guaranteed slot
+          - actual conflicts cannot be FEWER than this estimate
+          - therefore h(n) never overestimates → A* remains optimal
         """
         remaining    = self.get_remaining_tasks()
         available    = self.get_available_slots()
         h            = 0
 
         for task in remaining:
-            # слоты в пределах дедлайна для этой задачи
+            # slots within the deadline for this task
             slots_in_time = [
                 s for s in available
                 if self.time_slots.index(s) <= task["deadline"]
             ]
-            # если нет ни одного слота до дедлайна — конфликт неизбежен
+            # if no slot before the deadline exists — conflict is inevitable
             if len(slots_in_time) == 0:
                 h += 1
 
         return h
 
-    # ── отладка ───────────────────────────────────────────────────────────
+    # ── debug ─────────────────────────────────────────────────────────────
 
     def __repr__(self) -> str:
         remaining = len(self.get_remaining_tasks())
@@ -138,14 +138,14 @@ class StudentScheduleState:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# ФАБРИКА — генерация слотов и задач из профиля студента
+# FACTORY — generate slots and tasks from a student profile
 # ══════════════════════════════════════════════════════════════════════════
 
 def make_time_slots(free_hours_per_day: int = 4, days: int = 7) -> list:
     """
-    Генерирует метки временных слотов на `days` дней.
-    Каждый слот = 2 часа работы.
-    Пример: ["Mon1", "Mon2", "Tue1", ...]
+    Generates time slot labels for `days` days.
+    Each slot = 2 hours of work.
+    Example: ["Mon1", "Mon2", "Tue1", ...]
     """
     day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     slots_per_day = max(1, free_hours_per_day // 2)
@@ -159,8 +159,8 @@ def make_time_slots(free_hours_per_day: int = 4, days: int = 7) -> list:
 
 def make_tasks_from_profile(profile: dict) -> list:
     """
-    Генерирует список задач из профиля студента.
-    Каждая задача — dict с name, duration, deadline.
+    Generates a task list from a student profile.
+    Each task is a dict with name, duration, deadline.
     """
     n_tasks   = int(profile.get("num_pending_tasks", 5))
     days_exam = int(profile.get("days_until_exam", 7))
@@ -174,9 +174,9 @@ def make_tasks_from_profile(profile: dict) -> list:
 
     tasks = []
     for i in range(n_tasks):
-        # дедлайны: первые задачи срочнее
+        # deadlines: earlier tasks are more urgent
         deadline_day = max(0, int(days_exam * (i + 1) / n_tasks) - 1)
-        # deadline в индексах слотов (2 слота в день)
+        # deadline in slot indices (2 slots per day)
         deadline_slot_idx = deadline_day * 2 + 1
         tasks.append({
             "name":     f"{subjects[i % len(subjects)]} Task {i+1}",
@@ -187,12 +187,12 @@ def make_tasks_from_profile(profile: dict) -> list:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# ТЕСТ
+# TEST
 # ══════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     print("=" * 55)
-    print("STATE — тест")
+    print("STATE — test")
     print("=" * 55)
 
     tasks = [
@@ -203,34 +203,34 @@ if __name__ == "__main__":
     ]
     slots = make_time_slots(free_hours_per_day=4, days=7)
 
-    print(f"\nСлоты ({len(slots)}): {slots}")
-    print(f"Задачи ({len(tasks)}):")
+    print(f"\nSlots ({len(slots)}): {slots}")
+    print(f"Tasks ({len(tasks)}):")
     for t in tasks:
         print(f"  {t['name']:<20} deadline=slot[{t['deadline']}]"
               f" ({slots[t['deadline']] if t['deadline'] < len(slots) else 'OOB'})")
 
     state = StudentScheduleState(tasks, slots)
-    print(f"\nНачальное состояние : {state}")
-    print(f"is_goal             : {state.is_goal()}")
-    print(f"remaining tasks     : {[t['name'] for t in state.get_remaining_tasks()]}")
-    print(f"available slots     : {state.get_available_slots()[:5]}...")
-    print(f"h(n)                : {state.heuristic()}")
+    print(f"\nInitial state : {state}")
+    print(f"is_goal       : {state.is_goal()}")
+    print(f"remaining tasks : {[t['name'] for t in state.get_remaining_tasks()]}")
+    print(f"available slots : {state.get_available_slots()[:5]}...")
+    print(f"h(n)            : {state.heuristic()}")
 
-    # тест assign (иммутабельность)
+    # test assign (immutability)
     new_state = state.assign(tasks[0], slots[0])
-    print(f"\nПосле assign(Math Essay → Mon1):")
+    print(f"\nAfter assign(Math Essay → Mon1):")
     print(f"  new_state : {new_state}")
-    print(f"  old_state : {state}  ← не изменился")
+    print(f"  old_state : {state}  ← unchanged")
     print(f"  schedule  : {new_state.schedule}")
     print(f"  conflicts : {new_state.calculate_conflicts()}")
 
-    assert state.schedule == {}          # старое не изменилось
+    assert state.schedule == {}          # original unchanged
     assert len(new_state.schedule) == 1
-    assert new_state.calculate_conflicts() == 0   # слот Mon1 (idx=0) <= deadline=2
+    assert new_state.calculate_conflicts() == 0   # slot Mon1 (idx=0) <= deadline=2
 
-    # тест конфликта: ставим задачу позже дедлайна
+    # test conflict: place task after its deadline
     late_state = state.assign(tasks[0], slots[5])   # slot idx=5 > deadline=2
     assert late_state.calculate_conflicts() == 1
-    print(f"\nКонфликт при назначении в поздний слот: {late_state.calculate_conflicts()} ✓")
+    print(f"\nConflict when assigned to a late slot: {late_state.calculate_conflicts()} ✓")
 
     print("\n  Smoke tests: PASSED")

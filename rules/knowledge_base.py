@@ -1,34 +1,34 @@
 """
 rules/knowledge_base.py
 =======================
-Этап 3 — Student Success Copilot
+Stage 3 — Student Success Copilot
 
-База знаний экспертной системы.
-Правила хранятся как список словарей — это делает их:
-  - читаемыми для экзаменатора
-  - легко расширяемыми (добавь строку — добавил правило)
-  - пригодными для обоих типов chaining
+Expert system knowledge base.
+Rules are stored as a list of dictionaries — this makes them:
+  - readable for the examiner
+  - easily extendable (add a dict — add a rule)
+  - suitable for both types of chaining
 
-ВАЖНО: пороги намеренно совпадают с:
+IMPORTANT: thresholds deliberately match those in:
   - data/generate_dataset.py  label_risk()
   - ml/explain.py             THRESHOLDS
-Это суть Explainability: правила объясняют то же, что выучила ML модель.
+This is the essence of Explainability: rules explain what the ML model learned.
 
-Структура правила:
-  id          — уникальный идентификатор
-  conditions  — список лямбда-функций (profile -> bool)
-  signal      — строка-метка сработавшего правила
+Rule structure:
+  id          — unique identifier
+  conditions  — list of lambda functions (profile -> bool)
+  signal      — string label of the fired rule
   severity    — "high" | "medium" | "low"
-  advice      — совет студенту
-  explanation — почему это проблема (для explanation card)
-  requires    — ключи профиля, нужные для проверки
-                (backward chaining спросит о недостающих)
+  advice      — advice for the student
+  explanation — why this is a problem (for the explanation card)
+  requires    — profile keys needed for evaluation
+                (backward chaining will ask about missing ones)
 """
 
 RULES = [
 
     # ══════════════════════════════════════════════
-    # HIGH — критические сигналы (2+ → risk=High)
+    # HIGH — critical signals (2+ → risk=High)
     # ══════════════════════════════════════════════
 
     {
@@ -40,14 +40,14 @@ RULES = [
         "severity":    "high",
         "confidence":  0.85,
         "advice": (
-            "Уровень стресса критически высок. "
-            "Запланируй полный день отдыха в ближайшие 2 дня. "
-            "Раздели крупные задачи на 25-минутные блоки (Pomodoro)."
+            "Stress level is critically high. "
+            "Schedule a full rest day within the next 2 days. "
+            "Break large tasks into 25-minute blocks (Pomodoro technique)."
         ),
         "explanation": (
-            "Стресс выше 7/10 снижает продуктивность на 30-40% "
-            "и ухудшает долгосрочную память. "
-            "Это один из пяти критических сигналов модели."
+            "Stress above 7/10 reduces productivity by 30-40% "
+            "and impairs long-term memory consolidation. "
+            "This is one of the five critical signals in the model."
         ),
         "requires": ["stress_level"],
     },
@@ -61,14 +61,14 @@ RULES = [
         "severity":    "high",
         "confidence":  0.80,
         "advice": (
-            "Менее 5.5 ч сна — критический уровень. "
-            "Сегодня ложись до 23:00. "
-            "Убери все задачи после 22:00 из расписания."
+            "Less than 5.5 hours of sleep — critical level. "
+            "Go to bed before 23:00 tonight. "
+            "Remove all tasks after 22:00 from your schedule."
         ),
         "explanation": (
-            "Хроническое недосыпание (<5.5 ч) эквивалентно "
-            "1.5 суткам без сна по когнитивному эффекту. "
-            "Учёба после полуночи при таком режиме неэффективна."
+            "Chronic sleep deprivation (<5.5 hrs) is cognitively equivalent "
+            "to 1.5 days without sleep. "
+            "Studying after midnight under this regime is ineffective."
         ),
         "requires": ["sleep_hours_avg"],
     },
@@ -82,14 +82,14 @@ RULES = [
         "severity":    "high",
         "confidence":  0.80,
         "advice": (
-            "История выполнения задач ниже 40%. "
-            "Выбери 3 задачи с ближайшими дедлайнами — только они в фокусе. "
-            "Одна задача за раз, не распыляйся."
+            "Task completion rate is below 40%. "
+            "Pick 3 tasks with the nearest deadlines — focus only on those. "
+            "One task at a time; do not spread yourself thin."
         ),
         "explanation": (
-            "Completion rate <40% — предиктор №1 академического риска "
-            "в нашей модели (feature importance: 22%). "
-            "Причина обычно — слишком широкий список без приоритизации."
+            "Completion rate <40% is the #1 predictor of academic risk "
+            "in our model (feature importance: 22%). "
+            "The usual cause is an over-broad task list without prioritisation."
         ),
         "requires": ["past_completion_rate"],
     },
@@ -104,13 +104,13 @@ RULES = [
         "severity":    "high",
         "confidence":  0.75,
         "advice": (
-            "Экзамен через 3 дня, в очереди 6+ задач — перегрузка. "
-            "Academic triage: раздели задачи на 'до экзамена' и 'после'. "
-            "Плановщик поможет расставить приоритеты."
+            "Exam in 3 days with 6+ tasks in the queue — overload. "
+            "Academic triage: split tasks into 'before exam' and 'after exam'. "
+            "The planner will help you prioritise."
         ),
         "explanation": (
-            "Близкий экзамен + большая очередь задач = когнитивная перегрузка. "
-            "Попытка сделать всё одновременно хуже, чем осознанный выбор."
+            "An imminent exam combined with a large task queue creates cognitive overload. "
+            "Trying to do everything at once is worse than making a deliberate choice."
         ),
         "requires": ["days_until_exam", "num_pending_tasks"],
     },
@@ -124,19 +124,19 @@ RULES = [
         "severity":    "high",
         "confidence":  0.75,
         "advice": (
-            "Пропущено более 35% занятий. "
-            "Это может повлиять на допуск к экзаменам. "
-            "Свяжись с деканатом или куратором сегодня."
+            "More than 35% of classes missed. "
+            "This may affect your eligibility to sit exams. "
+            "Contact your department office or academic advisor today."
         ),
         "explanation": (
-            "Высокий процент пропусков коррелирует с недопуском к сессии "
-            "и пробелами в материале, которые сложно компенсировать самостоятельно."
+            "A high absence rate correlates with disqualification from exams "
+            "and knowledge gaps that are difficult to fill independently."
         ),
         "requires": ["missed_classes_pct"],
     },
 
     # ══════════════════════════════════════════════
-    # MEDIUM — предупреждающие сигналы
+    # MEDIUM — warning signals
     # ══════════════════════════════════════════════
 
     {
@@ -148,13 +148,13 @@ RULES = [
         "severity":    "medium",
         "confidence":  0.65,
         "advice": (
-            "Стресс повышен (6-7/10). "
-            "Добавь 30-минутный перерыв каждые 2 часа работы. "
-            "Короткая физическая активность снижает кортизол."
+            "Stress is elevated (6-7/10). "
+            "Add a 30-minute break every 2 hours of work. "
+            "Short physical activity lowers cortisol."
         ),
         "explanation": (
-            "Стресс 6-7/10 — пограничная зона. "
-            "Без вмешательства может перейти в критический уровень за 1-2 дня."
+            "Stress at 6-7/10 is a borderline zone. "
+            "Without intervention it can escalate to a critical level within 1-2 days."
         ),
         "requires": ["stress_level"],
     },
@@ -168,13 +168,13 @@ RULES = [
         "severity":    "medium",
         "confidence":  0.60,
         "advice": (
-            "Сна немного меньше нормы (5.5-6.5 ч). "
-            "Добавь хотя бы 30-45 минут — "
-            "даже небольшое улучшение заметно сказывается на концентрации."
+            "Sleep is slightly below the normal range (5.5-6.5 hrs). "
+            "Adding even 30-45 minutes makes a noticeable difference "
+            "to concentration and focus."
         ),
         "explanation": (
-            "Норма для студента 7-9 ч. "
-            "6-6.5 ч ещё не критично, но снижает качество консолидации памяти."
+            "The recommended amount for students is 7-9 hrs. "
+            "6-6.5 hrs is not yet critical, but reduces memory consolidation quality."
         ),
         "requires": ["sleep_hours_avg"],
     },
@@ -188,13 +188,13 @@ RULES = [
         "severity":    "medium",
         "confidence":  0.60,
         "advice": (
-            "История выполнения 40-60% — зона риска. "
-            "Попробуй правило двух задач в день: "
-            "небольшие победы накапливают импульс."
+            "Completion history is 40-60% — a risk zone. "
+            "Try the two-tasks-per-day rule: "
+            "small wins build momentum."
         ),
         "explanation": (
-            "50% completion rate — каждая вторая задача остаётся незакрытой. "
-            "Обычная причина — неверная оценка времени на задачу."
+            "A 50% completion rate means every second task stays unfinished. "
+            "The typical cause is underestimating how long tasks take."
         ),
         "requires": ["past_completion_rate"],
     },
@@ -208,12 +208,12 @@ RULES = [
         "severity":    "medium",
         "confidence":  0.55,
         "advice": (
-            "Более 12 ч/нед внеучебных активностей при текущей нагрузке — много. "
-            "Рассмотри временное сокращение до конца сессии."
+            "More than 12 hrs/week of extracurricular activities under the current load is high. "
+            "Consider temporarily reducing commitments until the end of the exam period."
         ),
         "explanation": (
-            "При академическом давлении каждый дополнительный "
-            "час вне учёбы — это час без восстановления."
+            "Under academic pressure, every additional hour away from studying "
+            "is an hour without recovery."
         ),
         "requires": ["extracurricular_hours"],
     },
@@ -228,19 +228,19 @@ RULES = [
         "severity":    "medium",
         "confidence":  0.70,
         "advice": (
-            "Мало времени (<2 ч/день) + много задач (5+) — математика не сходится. "
-            "Плановщик покажет реальную картину: "
-            "какие задачи физически невозможно уместить в неделю."
+            "Too little time (<2 hrs/day) + too many tasks (5+) — the maths doesn't work. "
+            "The planner will show the real picture: "
+            "which tasks physically cannot fit into the week."
         ),
         "explanation": (
-            "При <2 свободных часах в день невозможно качественно выполнить 5+ задач. "
-            "A* честно скажет об этом, в отличие от Greedy."
+            "With fewer than 2 free hours per day it is impossible to complete 5+ tasks well. "
+            "A* will report this honestly, unlike Greedy."
         ),
         "requires": ["free_hours_per_day", "num_pending_tasks"],
     },
 
     # ══════════════════════════════════════════════
-    # LOW — позитивное подтверждение
+    # LOW — positive confirmation
     # ══════════════════════════════════════════════
 
     {
@@ -254,31 +254,31 @@ RULES = [
         "severity":    "low",
         "confidence":  0.90,
         "advice": (
-            "Отличный режим: сон, выполнение задач и стресс — всё в норме. "
-            "Поддерживай этот ритм перед сессией."
+            "Excellent routine: sleep, task completion, and stress are all within range. "
+            "Maintain this rhythm going into the exam period."
         ),
         "explanation": (
-            "Три ключевых показателя одновременно в норме — "
-            "сильный предиктор успешного завершения семестра."
+            "Three key indicators within range simultaneously — "
+            "a strong predictor of successfully completing the semester."
         ),
         "requires": ["sleep_hours_avg", "past_completion_rate", "stress_level"],
     },
 ]
 
-# быстрый доступ по id
+# quick lookup by id
 RULES_BY_ID = {r["id"]: r for r in RULES}
 
-# все ключи, которые хоть одно правило требует
+# all keys required by at least one rule
 ALL_REQUIRED_KEYS = sorted({
     key for rule in RULES for key in rule["requires"]
 })
 
 
 if __name__ == "__main__":
-    print(f"База знаний: {len(RULES)} правил\n")
+    print(f"Knowledge base: {len(RULES)} rules\n")
     for r in RULES:
         print(f"  {r['id']:<30}  severity={r['severity']:<6}  "
               f"confidence={r['confidence']:.2f}  "
               f"conditions={len(r['conditions'])}  "
               f"requires={r['requires']}")
-    print(f"\nВсе требуемые ключи: {ALL_REQUIRED_KEYS}")
+    print(f"\nAll required keys: {ALL_REQUIRED_KEYS}")

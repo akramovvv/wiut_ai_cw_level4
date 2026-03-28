@@ -1,21 +1,21 @@
 """
 rules/forward_chain.py
 ======================
-Этап 3 — Student Success Copilot
+Stage 3 — Student Success Copilot
 
-Forward Chaining: data-driven рассуждение.
+Forward Chaining: data-driven reasoning.
 
-Алгоритм:
-  1. Берём текущий профиль студента (факты)
-  2. Проходим по ВСЕМ правилам knowledge_base
-  3. Если ВСЕ conditions правила выполнены → правило срабатывает
-  4. Собираем сработавшие правила → signals, advices, explanation
+Algorithm:
+  1. Take the current student profile (facts)
+  2. Iterate over ALL rules in knowledge_base
+  3. If ALL conditions of a rule are met → the rule fires
+  4. Collect fired rules → signals, advices, explanation
 
-Почему Forward здесь:
-  У нас уже есть данные (или backward chain их собрал).
-  Мы движемся от фактов к выводу — это и есть forward chaining.
+Why Forward here:
+  We already have the data (or backward chain collected it).
+  We move from facts to conclusions — that is forward chaining.
 
-Публичный API:
+Public API:
   run_forward_chain(profile) -> ForwardChainResult
 """
 
@@ -38,8 +38,8 @@ class ForwardChainResult:
 
 def _assess_risk(fired_rules: list) -> str:
     """
-    Определяет уровень риска по сработавшим правилам.
-    Логика зеркалит generate_dataset.label_risk() — намеренно.
+    Determines risk level from fired rules.
+    Logic mirrors generate_dataset.label_risk() — intentionally.
     """
     high   = sum(1 for r in fired_rules if r["severity"] == "high")
     medium = sum(1 for r in fired_rules if r["severity"] == "medium")
@@ -54,13 +54,13 @@ def _assess_risk(fired_rules: list) -> str:
 
 def _build_explanation(fired_rules: list, risk_level: str) -> str:
     """
-    Строит связный текст объяснения.
-    Идёт в explanation card и дополняет explain_ml().
+    Builds a coherent explanation text.
+    Goes into the explanation card and complements explain_ml().
     """
     if not fired_rules:
         return (
-            "Экспертная система не обнаружила активных сигналов риска. "
-            "Все проверенные показатели в пределах нормы."
+            "The expert system detected no active risk signals. "
+            "All checked indicators are within normal range."
         )
 
     high_rules   = [r for r in fired_rules if r["severity"] == "high"]
@@ -70,10 +70,10 @@ def _build_explanation(fired_rules: list, risk_level: str) -> str:
     parts = []
 
     n = len(fired_rules)
-    word = "правило" if n == 1 else "правила" if n < 5 else "правил"
+    word = "rule" if n == 1 else "rules"
     parts.append(
-        f"Экспертная система активировала {n} {word} "
-        f"(итоговый риск: {risk_level})."
+        f"The expert system fired {n} {word} "
+        f"(overall risk: {risk_level})."
     )
 
     if high_rules:
@@ -82,7 +82,7 @@ def _build_explanation(fired_rules: list, risk_level: str) -> str:
             for r in high_rules
         )
         parts.append(
-            f"Критические сигналы ({len(high_rules)}): {signals_str}."
+            f"Critical signals ({len(high_rules)}): {signals_str}."
         )
         for r in high_rules[:2]:
             parts.append(f"• {r['explanation']}")
@@ -93,21 +93,21 @@ def _build_explanation(fired_rules: list, risk_level: str) -> str:
             for r in medium_rules
         )
         parts.append(
-            f"Предупреждающие сигналы ({len(medium_rules)}): {signals_str}."
+            f"Warning signals ({len(medium_rules)}): {signals_str}."
         )
 
     if low_rules:
-        parts.append("Позитивный сигнал: " + low_rules[0]["advice"])
+        parts.append("Positive signal: " + low_rules[0]["advice"])
 
     return " ".join(parts)
 
 
 def run_forward_chain(profile: dict) -> ForwardChainResult:
     """
-    Запускает forward chaining на профиле студента.
+    Runs forward chaining on the student profile.
 
-    Отсутствующие ключи обрабатываются безопасно:
-    правило просто не срабатывает если данных не хватает.
+    Missing keys are handled safely:
+    a rule simply does not fire if the required data is absent.
     """
     fired = []
 
@@ -116,9 +116,9 @@ def run_forward_chain(profile: dict) -> ForwardChainResult:
             if all(cond(profile) for cond in rule["conditions"]):
                 fired.append(rule)
         except (TypeError, KeyError, ValueError):
-            continue   # нет данных — правило пропускаем
+            continue   # missing data — skip the rule
 
-    # сортировка: high → medium → low
+    # sort: high → medium → low
     order = {"high": 0, "medium": 1, "low": 2}
     fired.sort(key=lambda r: order.get(r["severity"], 3))
 
@@ -135,12 +135,12 @@ def run_forward_chain(profile: dict) -> ForwardChainResult:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# ТЕСТ
+# TEST
 # ══════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("FORWARD CHAINING — тест сценариев A и B")
+    print("FORWARD CHAINING — test scenarios A and B")
     print("=" * 60)
 
     profile_A = {
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     }
 
     for name, profile in [("A — Normal", profile_A), ("B — At-risk", profile_B)]:
-        print(f"\n--- Сценарий {name} ---")
+        print(f"\n--- Scenario {name} ---")
         r = run_forward_chain(profile)
         print(f"  risk_level  : {r.risk_level}")
         print(f"  signals     : {r.signals}")

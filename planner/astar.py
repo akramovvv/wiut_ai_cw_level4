@@ -1,29 +1,29 @@
 """
 planner/astar.py
 ================
-Этап 4 — Student Success Copilot
+Stage 4 — Student Success Copilot
 
-A* Search для планирования расписания студента.
+A* Search for student schedule planning.
 
-Теория алгоритма A*:
-  - Использует priority queue (min-heap по f = g + h)
-  - g(n) = calculate_conflicts() — реальные конфликты в текущем состоянии
-  - h(n) = heuristic()           — оценка будущих конфликтов (admissible)
-  - f(n) = g(n) + h(n)          — приоритет в очереди
+A* algorithm theory:
+  - Uses a priority queue (min-heap by f = g + h)
+  - g(n) = calculate_conflicts() — actual conflicts in the current state
+  - h(n) = heuristic()           — estimate of future conflicts (admissible)
+  - f(n) = g(n) + h(n)          — priority in the queue
 
-Почему h(n) admissible:
-  heuristic() считает задачи, у которых ТОЧНО не будет слота до дедлайна.
-  Это нижняя граница будущих конфликтов — реальных конфликтов
-  не может быть МЕНЬШЕ. Значит h(n) не переоценивает → A* оптимален.
+Why h(n) is admissible:
+  heuristic() counts tasks that CERTAINLY won't have a slot before their deadline.
+  This is a lower bound on future conflicts — the actual number of conflicts
+  cannot be LESS. Therefore h(n) does not overestimate → A* is optimal.
 
-Почему ветвление ограничено (TOP_K_SLOTS):
-  Без ограничения: каждая задача × все свободные слоты = экспоненциальный
-  рост дерева состояний. TOP_K_SLOTS = 3 лучших слота (по близости к дедлайну)
-  сохраняют качество решения и держат время выполнения разумным.
+Why branching is limited (TOP_K_SLOTS):
+  Without the limit: each task × all free slots = exponential state tree growth.
+  TOP_K_SLOTS = 3 best slots (by closeness to deadline)
+  preserves solution quality and keeps runtime reasonable.
 
-Сравнение с Greedy:
-  A*     — исследует больше узлов, медленнее, но минимизирует конфликты
-  Greedy — исследует O(n) узлов, быстрее, но может создавать конфликты
+Comparison with Greedy:
+  A*     — explores more nodes, slower, but minimises conflicts
+  Greedy — explores O(n) nodes, faster, but may create conflicts
 """
 
 from __future__ import annotations
@@ -35,30 +35,30 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from planner.state import StudentScheduleState
 
-TOP_K_SLOTS = 3   # сколько кандидатов-слотов рассматриваем на каждом шаге
+TOP_K_SLOTS = 3   # number of candidate slots considered at each step
 
 
 def astar_schedule(tasks: list, time_slots: list) -> dict:
     """
-    Строит расписание алгоритмом A*.
+    Builds a schedule using the A* algorithm.
 
-    Аргументы:
-        tasks      : список dict-задач [{"name", "duration", "deadline"}, ...]
-        time_slots : список меток слотов ["Mon1", "Mon2", ...]
+    Arguments:
+        tasks      : list of task dicts [{"name", "duration", "deadline"}, ...]
+        time_slots : list of slot labels ["Mon1", "Mon2", ...]
 
-    Возвращает dict:
+    Returns dict:
         schedule       : {slot -> task_name}
-        conflicts      : число нарушений дедлайнов
-        nodes_expanded : число раскрытых узлов поиска
-        time_ms        : время выполнения
-        unscheduled    : задачи которые не влезли
+        conflicts      : number of deadline violations
+        nodes_expanded : number of search nodes expanded
+        time_ms        : execution time
+        unscheduled    : tasks that did not fit
     """
     t_start = time.perf_counter()
 
     initial_state = StudentScheduleState(tasks, time_slots)
 
-    # heap элемент: (f_cost, tie_breaker, state)
-    # tie_breaker нужен чтобы Python не сравнивал state при одинаковом f
+    # heap element: (f_cost, tie_breaker, state)
+    # tie_breaker prevents Python from comparing state objects when f is equal
     counter = 0
     heap    = [(
         initial_state.calculate_conflicts() + initial_state.heuristic(),
@@ -67,17 +67,17 @@ def astar_schedule(tasks: list, time_slots: list) -> dict:
     )]
 
     nodes_expanded = 0
-    best_partial   = initial_state   # лучшее частичное решение (на случай нехватки слотов)
+    best_partial   = initial_state   # best partial solution (in case slots run out)
 
     while heap:
         f, _, state = heapq.heappop(heap)
         nodes_expanded += 1
 
-        # обновляем лучшее частичное по количеству размещённых задач
+        # update best partial by number of placed tasks
         if len(state.schedule) > len(best_partial.schedule):
             best_partial = state
 
-        # GOAL CHECK — все задачи размещены
+        # GOAL CHECK — all tasks placed
         if state.is_goal():
             t_ms = (time.perf_counter() - t_start) * 1000
             return {
@@ -94,16 +94,16 @@ def astar_schedule(tasks: list, time_slots: list) -> dict:
         if not remaining or not available:
             continue
 
-        # выбираем задачу с ближайшим дедлайном (earliest deadline first)
-        # это направляет поиск к наиболее критичным задачам первыми
+        # choose the task with the nearest deadline (earliest deadline first)
+        # this directs the search towards the most critical tasks first
         task = min(remaining, key=lambda t: t["deadline"])
 
-        # TOP_K лучших слотов: сортируем по близости к дедлайну задачи
-        # слоты ДО дедлайна приоритетнее (меньше конфликтов)
+        # TOP_K best slots: sorted by proximity to the task's deadline
+        # slots BEFORE the deadline are preferred (fewer conflicts)
         def slot_priority(slot: str) -> tuple:
             idx = time_slots.index(slot)
-            over_deadline = max(0, idx - task["deadline"])   # штраф за опоздание
-            return (over_deadline, idx)                       # сначала без штрафа, потом ранние
+            over_deadline = max(0, idx - task["deadline"])   # penalty for being late
+            return (over_deadline, idx)                       # no-penalty first, then earliest
 
         candidate_slots = sorted(available, key=slot_priority)[:TOP_K_SLOTS]
 
@@ -114,7 +114,7 @@ def astar_schedule(tasks: list, time_slots: list) -> dict:
             counter  += 1
             heapq.heappush(heap, (g + h, counter, new_state))
 
-    # heap пуст — возвращаем лучшее найденное частичное решение
+    # heap is empty — return the best partial solution found
     t_ms        = (time.perf_counter() - t_start) * 1000
     scheduled   = set(best_partial.schedule.values())
     unscheduled = [t["name"] for t in tasks if t["name"] not in scheduled]
@@ -135,8 +135,8 @@ def compare_algorithms(
     time_slots: list,
 ) -> str:
     """
-    Строит таблицу сравнения A* и Greedy.
-    Ключевой артефакт для демо-видео и отчёта.
+    Builds a comparison table for A* and Greedy.
+    Key artefact for demo video and report.
     """
     a = astar_result
     g = greedy_result
@@ -150,15 +150,15 @@ def compare_algorithms(
     g_placed = len(g["schedule"])
 
     rows = [
-        ("Конфликты дедлайнов",   a["conflicts"],      g["conflicts"],      True),
-        ("Задач размещено",        a_placed,            g_placed,            False),
-        ("Задач нераспределено",   len(a["unscheduled"]), len(g["unscheduled"]), True),
-        ("Узлов исследовано",      a["nodes_expanded"], g["nodes_expanded"], True),
-        ("Время выполнения (мс)",  a["time_ms"],        g["time_ms"],        True),
+        ("Deadline conflicts",      a["conflicts"],      g["conflicts"],      True),
+        ("Tasks placed",            a_placed,            g_placed,            False),
+        ("Tasks unscheduled",       len(a["unscheduled"]), len(g["unscheduled"]), True),
+        ("Nodes expanded",          a["nodes_expanded"], g["nodes_expanded"], True),
+        ("Execution time (ms)",     a["time_ms"],        g["time_ms"],        True),
     ]
 
     top  = "┌─────────────────────────────┬──────────────┬──────────────┬──────────┐"
-    head = "│ Метрика                     │     A*       │    Greedy    │  Лучше   │"
+    head = "│ Metric                      │     A*       │    Greedy    │  Better  │"
     sep  = "├─────────────────────────────┼──────────────┼──────────────┼──────────┤"
     bot  = "└─────────────────────────────┴──────────────┴──────────────┴──────────┘"
 
@@ -170,41 +170,41 @@ def compare_algorithms(
         )
     lines += [sep]
 
-    a_complete = "Да" if not a["unscheduled"] else "Нет"
-    g_complete = "Да" if not g["unscheduled"] else "Нет"
+    a_complete = "Yes" if not a["unscheduled"] else "No"
+    g_complete = "Yes" if not g["unscheduled"] else "No"
     lines.append(
-        f"│ {'Расписание полное?':<27} │ {a_complete:>12} │ {g_complete:>12} │"
+        f"│ {'Schedule complete?':<27} │ {a_complete:>12} │ {g_complete:>12} │"
         f"          │"
     )
     lines.append(bot)
 
-    # итоговый вывод
+    # summary conclusion
     if a["conflicts"] < g["conflicts"]:
         diff = g["conflicts"] - a["conflicts"]
         lines.append(
-            f"\nВывод: A* устранил {diff} конфликт(а) по сравнению с Greedy.\n"
-            f"Цена оптимальности: A* исследовал {a['nodes_expanded']} узлов "
-            f"vs {g['nodes_expanded']} у Greedy, "
-            f"{a['time_ms']} мс vs {g['time_ms']} мс."
+            f"\nConclusion: A* eliminated {diff} conflict(s) compared to Greedy.\n"
+            f"Cost of optimality: A* expanded {a['nodes_expanded']} nodes "
+            f"vs {g['nodes_expanded']} for Greedy, "
+            f"{a['time_ms']} ms vs {g['time_ms']} ms."
         )
     elif a["conflicts"] == g["conflicts"] == 0:
         lines.append(
-            f"\nВывод: оба алгоритма избежали конфликтов.\n"
-            f"Greedy быстрее ({g['time_ms']} мс vs {a['time_ms']} мс A*) "
-            f"и исследовал меньше узлов ({g['nodes_expanded']} vs {a['nodes_expanded']}).\n"
-            f"В простых случаях Greedy достаточен; A* даёт гарантию оптимальности."
+            f"\nConclusion: both algorithms avoided conflicts.\n"
+            f"Greedy is faster ({g['time_ms']} ms vs {a['time_ms']} ms for A*) "
+            f"and expanded fewer nodes ({g['nodes_expanded']} vs {a['nodes_expanded']}).\n"
+            f"In simple cases Greedy is sufficient; A* provides an optimality guarantee."
         )
     else:
         lines.append(
-            f"\nВывод: A* конфликты={a['conflicts']}, "
-            f"Greedy конфликты={g['conflicts']}."
+            f"\nConclusion: A* conflicts={a['conflicts']}, "
+            f"Greedy conflicts={g['conflicts']}."
         )
 
     return "\n".join(lines)
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# ТЕСТ + СРАВНЕНИЕ
+# TEST + COMPARISON
 # ══════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
@@ -212,12 +212,12 @@ if __name__ == "__main__":
     from planner.greedy import greedy_schedule
 
     print("=" * 65)
-    print("A* vs GREEDY — сравнение двух сценариев")
+    print("A* vs GREEDY — comparison of two scenarios")
     print("=" * 65)
 
-    # ── Сценарий A: Normal ────────────────────────────────────────────
+    # ── Scenario A: Normal ────────────────────────────────────────────
     print("\n" + "─" * 65)
-    print("  Сценарий A — Normal (4 задачи, 14 слотов)")
+    print("  Scenario A — Normal (4 tasks, 14 slots)")
     print("─" * 65)
 
     tasks_a = [
@@ -226,31 +226,31 @@ if __name__ == "__main__":
         {"name": "OS Report",    "duration": 1, "deadline": 9},
         {"name": "DB Project",   "duration": 1, "deadline": 12},
     ]
-    slots_a = make_time_slots(free_hours_per_day=4, days=7)   # 14 слотов
+    slots_a = make_time_slots(free_hours_per_day=4, days=7)   # 14 slots
 
-    print(f"  Задач: {len(tasks_a)}  |  Слотов: {len(slots_a)}")
+    print(f"  Tasks: {len(tasks_a)}  |  Slots: {len(slots_a)}")
 
     astar_a  = astar_schedule(tasks_a, slots_a)
     greedy_a = greedy_schedule(tasks_a, slots_a)
 
-    print(f"\n  A*     : конфликтов={astar_a['conflicts']}  "
-          f"узлов={astar_a['nodes_expanded']}  "
-          f"время={astar_a['time_ms']} мс  "
-          f"полное={'Да' if not astar_a['unscheduled'] else 'Нет'}")
-    print(f"  Greedy : конфликтов={greedy_a['conflicts']}  "
-          f"узлов={greedy_a['nodes_expanded']}  "
-          f"время={greedy_a['time_ms']} мс  "
-          f"полное={'Да' if not greedy_a['unscheduled'] else 'Нет'}")
+    print(f"\n  A*     : conflicts={astar_a['conflicts']}  "
+          f"nodes={astar_a['nodes_expanded']}  "
+          f"time={astar_a['time_ms']} ms  "
+          f"complete={'Yes' if not astar_a['unscheduled'] else 'No'}")
+    print(f"  Greedy : conflicts={greedy_a['conflicts']}  "
+          f"nodes={greedy_a['nodes_expanded']}  "
+          f"time={greedy_a['time_ms']} ms  "
+          f"complete={'Yes' if not greedy_a['unscheduled'] else 'No'}")
 
-    print("\n  Расписание A* :")
+    print("\n  A* Schedule:")
     for slot, task in astar_a["schedule"].items():
         print(f"    {slot:<8} → {task}")
 
     print(compare_algorithms(astar_a, greedy_a, tasks_a, slots_a))
 
-    # ── Сценарий B: At-risk ───────────────────────────────────────────
+    # ── Scenario B: At-risk ───────────────────────────────────────────
     print("\n" + "─" * 65)
-    print("  Сценарий B — At-risk (11 задач, 7 слотов)")
+    print("  Scenario B — At-risk (11 tasks, 7 slots)")
     print("─" * 65)
 
     profile_b = {
@@ -260,37 +260,37 @@ if __name__ == "__main__":
         "free_hours_per_day":      2,
     }
     tasks_b = make_tasks_from_profile(profile_b)
-    slots_b = make_time_slots(free_hours_per_day=2, days=7)   # 7 слотов
+    slots_b = make_time_slots(free_hours_per_day=2, days=7)   # 7 slots
 
-    print(f"  Задач: {len(tasks_b)}  |  Слотов: {len(slots_b)}")
+    print(f"  Tasks: {len(tasks_b)}  |  Slots: {len(slots_b)}")
 
     astar_b  = astar_schedule(tasks_b, slots_b)
     greedy_b = greedy_schedule(tasks_b, slots_b)
 
-    print(f"\n  A*     : конфликтов={astar_b['conflicts']}  "
-          f"узлов={astar_b['nodes_expanded']}  "
-          f"время={astar_b['time_ms']} мс  "
-          f"нераспределено={astar_b['unscheduled']}")
-    print(f"  Greedy : конфликтов={greedy_b['conflicts']}  "
-          f"узлов={greedy_b['nodes_expanded']}  "
-          f"время={greedy_b['time_ms']} мс  "
-          f"нераспределено={greedy_b['unscheduled']}")
+    print(f"\n  A*     : conflicts={astar_b['conflicts']}  "
+          f"nodes={astar_b['nodes_expanded']}  "
+          f"time={astar_b['time_ms']} ms  "
+          f"unscheduled={astar_b['unscheduled']}")
+    print(f"  Greedy : conflicts={greedy_b['conflicts']}  "
+          f"nodes={greedy_b['nodes_expanded']}  "
+          f"time={greedy_b['time_ms']} ms  "
+          f"unscheduled={greedy_b['unscheduled']}")
 
     print(compare_algorithms(astar_b, greedy_b, tasks_b, slots_b))
 
     if astar_b["unscheduled"]:
         print(
-            f"\n  [!] A* честно сообщает: {len(astar_b['unscheduled'])} задач "
-            f"невозможно разместить при {len(slots_b)} доступных слотах.\n"
-            f"  Это ключевой момент демо сценария B."
+            f"\n  [!] A* honestly reports: {len(astar_b['unscheduled'])} task(s) "
+            f"cannot be placed with {len(slots_b)} available slots.\n"
+            f"  This is the key point of Scenario B demo."
         )
 
     # smoke tests
-    assert astar_a["conflicts"]  == 0,    "A* Сценарий A: конфликтов быть не должно"
-    assert greedy_a["conflicts"] == 0,    "Greedy Сценарий A: конфликтов быть не должно"
-    assert astar_a["unscheduled"]  == [], "A* Сценарий A: все задачи должны быть размещены"
-    assert greedy_a["unscheduled"] == [], "Greedy Сценарий A: все задачи должны быть размещены"
+    assert astar_a["conflicts"]  == 0,    "A* Scenario A: no conflicts expected"
+    assert greedy_a["conflicts"] == 0,    "Greedy Scenario A: no conflicts expected"
+    assert astar_a["unscheduled"]  == [], "A* Scenario A: all tasks should be placed"
+    assert greedy_a["unscheduled"] == [], "Greedy Scenario A: all tasks should be placed"
     assert astar_b["nodes_expanded"] > greedy_b["nodes_expanded"], \
-        "A* должен исследовать больше узлов чем Greedy"
+        "A* should expand more nodes than Greedy"
 
     print("\n  Smoke tests: PASSED")
